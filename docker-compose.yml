@@ -105,7 +105,7 @@ services:
     privileged: true
     volumes:
       # Mount the shared volume where rules will be stored
-      - falco-rules:/etc/falco/rules.d
+      - /falco-rules:/etc/falco/rules.d
       # Standard Falco mounts
       - /var/run/docker.sock:/host/var/run/docker.sock
       - /dev:/host/dev
