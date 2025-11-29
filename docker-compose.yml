@@ -135,12 +135,18 @@ services:
   # ---------------------------------------------------------
   # CRIBL LEADER
   # ---------------------------------------------------------
-  cribl_leader:
+  master:
     image: cribl/cribl:latest
     container_name: cribl_leader
+    cap_add:
+      - NET_ADMIN
+    #user: 999:999
     environment:
-      - CRIBL_DIST_MODE=master
+      - CRIBL_DIST_MODE=leader
+      # This instructs the Leader to listen on port 4200 inside the container
+      - CRIBL_DIST_LEADER_URL=tcp://${CRIBL_DIST_TOKEN:-criblmaster}@0.0.0.0:4200
       - CRIBL_VOLUME_DIR=/opt/cribl/config-volume
+    entrypoint: ["/bin/bash", "-c", "ip route replace default via 172.20.40.254 && su - cribl -c '/sbin/entrypoint.sh'"]
     volumes:
       # Map the named volumes to the container paths
       - cribl_config:/opt/cribl/config-volume
@@ -149,31 +155,32 @@ services:
       net_cribl:
         ipv4_address: 172.20.40.10
     ports:
-      - "9000:9000"
-
+      - "19000:9000"   # UI Port
+      - "4200:4200"    # Cluster Communication Port (REQUIRED for Workers)
+    
   # ---------------------------------------------------------
   # CRIBL WORKER
   # ---------------------------------------------------------
-  cribl_worker:
+  worker:
     image: cribl/cribl:latest
     container_name: cribl_worker
     cap_add:
       - NET_ADMIN
+    #user: 999:999
     environment:
       - CRIBL_DIST_MODE=worker
-      - CRIBL_DIST_MASTER_URL=tcp://criblmaster@172.20.40.10:4200
+      - CRIBL_DIST_WORKER_TAGS=secure-docker-lab  # Optional: helpful for grouping
+      - CRIBL_DIST_MASTER_URL=tcp://criblmaster@172.20.40.10:4200  # Replace <LEADER_HOST_IP> with the actual IP address of the Leader machine
+    entrypoint: ["/bin/bash", "-c", "ip route replace default via 172.20.40.254 && su - cribl -c '/sbin/entrypoint.sh'"]
     volumes:
       - ./common_gateway.sh:/usr/local/bin/gateway.sh
-    entrypoint:
-      - /bin/bash
-      - -c
-      - |
-        /usr/local/bin/gateway.sh 172.20.40.254 172.20.40.20
-        /sbin/entrypoint.sh cribl
+      # Workers usually don't need persistent config volumes as they pull config from the Leader
     networks:
       net_cribl:
         ipv4_address: 172.20.40.20
-
+    ports:
+      - "9000" # Optional: if you want to see the worker UI directly
+    
   # ---------------------------------------------------------
   # SFTP SERVER
   # ---------------------------------------------------------
