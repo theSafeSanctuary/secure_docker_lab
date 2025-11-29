@@ -19,7 +19,7 @@ fi
 echo "[Firewall] Enabling IP Forwarding..."
 # CRITICAL: This flips the kernel switch that allows this container to act as a router.
 # Without this, packets arriving at eth1 (SSH Net) destined for eth2 (SFTP Net) would be dropped.
-sysctl -w net.ipv4.ip_forward=1
+# sysctl -w net.ipv4.ip_forward=1
 
 echo "[Firewall] Applying Rules..."
 # We apply iptables rules BEFORE starting network services.

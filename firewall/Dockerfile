@@ -19,11 +19,19 @@ RUN apk add --no-cache \
     iproute2 \
     curl \
     python3 \
-    py3-pip
+    py3-pip \
+    openssl
 
 # Suricata-Update is a Python tool that manages rule downloads (Emerging Threats, etc.).
 # We install it via pip to get the latest version compatible with the installed Suricata.
-RUN pip3 install --upgrade suricata-update
+# RUN pip3 install --upgrade suricata-update
+RUN apk add --no-cache --virtual .build-deps \
+      build-base python3-dev libffi-dev openssl-dev cargo rust \
+ && python3 -m venv /opt/suricata-venv \
+ && /opt/suricata-venv/bin/pip install --no-cache-dir --upgrade pip setuptools wheel \
+ && /opt/suricata-venv/bin/pip install --no-cache-dir suricata-update \
+ && ln -s /opt/suricata-venv/bin/suricata-update /usr/local/bin/suricata-update \
+ && apk del .build-deps
 
 # BASTION CONFIGURATION:
 # We generate host keys for the SSH server so it can start.

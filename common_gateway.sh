@@ -27,6 +27,7 @@ fi
 echo "*.* @@$CRIBL_IP:514" >> /etc/rsyslog.conf
 
 # Start the logging daemon in the background so it doesn't block the script.
-rsyslogd -n &
+#rsyslogd -n &
+rsyslogd
 
 echo " [Gateway] Network setup complete."
