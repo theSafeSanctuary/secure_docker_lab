@@ -57,7 +57,7 @@ iptables -A FORWARD -s 172.20.0.0/16 -d 172.20.0.0/16 -p tcp --dport 22 -j $IDS_
 # ------------------------------------------------------------------------------
 # 7. Telemetry Rules (East-West Traffic)
 # ------------------------------------------------------------------------------
-# Allow all subnets to send Syslog (514) to the Cribl Worker (.20).
+# Allow all subnets to send Syslog (9514) to the Cribl Worker (.20).
 # We inspect this too, to ensure no one is exploiting the logging protocol.
 iptables -A FORWARD -d 172.20.40.20 -p udp --dport 9514 -j $IDS_TARGET
 iptables -A FORWARD -d 172.20.40.20 -p tcp --dport 9514 -j $IDS_TARGET

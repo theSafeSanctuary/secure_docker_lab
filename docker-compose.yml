@@ -113,6 +113,10 @@ services:
       - /proc:/host/proc:ro
       - /boot:/host/boot:ro
       - /lib/modules:/host/lib/modules:ro
+      # Mount kernel and tracefs so Falco's libbpf can read tracepoints and maps
+      - /sys:/sys:ro
+      - /sys/kernel/tracing:/sys/kernel/tracing:ro
+      - /sys/kernel/debug:/sys/kernel/debug:ro
       - ./common_gateway.sh:/usr/local/bin/gateway.sh
     environment:
       # Tell Falco to look for rules in the shared mount
@@ -155,7 +159,8 @@ services:
       # This instructs the Leader to listen on port 4200 inside the container
       - CRIBL_DIST_LEADER_URL=tcp://${CRIBL_DIST_TOKEN:-criblmaster}@0.0.0.0:4200
       - CRIBL_VOLUME_DIR=/opt/cribl/config-volume
-    entrypoint: ["/bin/bash", "-c", "ip route replace default via 172.20.40.254 && exec /sbin/entrypoint.sh"]
+    # entrypoint: ["/bin/bash", "-c", "ip route replace default via 172.20.40.254 && exec /sbin/entrypoint.sh"]
+    # entrypoint: ["/bin/bash","-c","ip route replace default via 172.20.40.254 && tail -f /dev/null"] 
     volumes:
       # Map the named volumes to the container paths
       - cribl_config:/opt/cribl/config-volume
@@ -180,7 +185,7 @@ services:
       - CRIBL_DIST_MODE=worker
       - CRIBL_DIST_WORKER_TAGS=secure-docker-lab  # Optional: helpful for grouping
       - CRIBL_DIST_MASTER_URL=tcp://criblmaster@172.20.40.10:4200  # Replace <LEADER_HOST_IP> with the actual IP address of the Leader machine
-    entrypoint: ["/bin/bash", "-c", "ip route replace default via 172.20.40.254 && su - cribl -c '/sbin/entrypoint.sh'"]
+    # entrypoint: ["/bin/bash", "-c", "ip route replace default via 172.20.40.254 && /sbin/entrypoint.sh"]
     volumes:
       - ./common_gateway.sh:/usr/local/bin/gateway.sh
       # Workers usually don't need persistent config volumes as they pull config from the Leader
