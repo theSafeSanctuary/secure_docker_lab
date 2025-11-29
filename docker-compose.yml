@@ -104,12 +104,20 @@ services:
     container_name: falco
     privileged: true
     volumes:
+      # Mount the shared volume where rules will be stored
+      - falco-rules:/etc/falco/rules.d
+      # Standard Falco mounts
       - /var/run/docker.sock:/host/var/run/docker.sock
       - /dev:/host/dev
       - /proc:/host/proc:ro
       - /boot:/host/boot:ro
       - /lib/modules:/host/lib/modules:ro
       - ./common_gateway.sh:/usr/local/bin/gateway.sh
+    environment:
+      # Tell Falco to look for rules in the shared mount
+      - FALCO_RULES_FILES=/etc/falco/falco_rules.yaml,/etc/falco/falco_rules.local.yaml,/etc/falco/rules.d
+      # Ensure Falco watches for file changes to hot-reload automatically
+      - FALCO_WATCH_CONFIG_FILES=true
     networks:
       net_falco:
         ipv4_address: 172.20.30.10
