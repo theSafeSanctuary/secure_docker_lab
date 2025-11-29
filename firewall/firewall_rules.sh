@@ -59,8 +59,8 @@ iptables -A FORWARD -s 172.20.0.0/16 -d 172.20.0.0/16 -p tcp --dport 22 -j $IDS_
 # ------------------------------------------------------------------------------
 # Allow all subnets to send Syslog (514) to the Cribl Worker (.20).
 # We inspect this too, to ensure no one is exploiting the logging protocol.
-iptables -A FORWARD -d 172.20.40.20 -p udp --dport 514 -j $IDS_TARGET
-iptables -A FORWARD -d 172.20.40.20 -p tcp --dport 514 -j $IDS_TARGET
+iptables -A FORWARD -d 172.20.40.20 -p udp --dport 9514 -j $IDS_TARGET
+iptables -A FORWARD -d 172.20.40.20 -p tcp --dport 9514 -j $IDS_TARGET
 
 # ------------------------------------------------------------------------------
 # 8. Internet Access (North-South Traffic)
@@ -71,14 +71,32 @@ iptables -A FORWARD -s 172.20.40.0/24 ! -d 172.20.0.0/16 -p tcp --dport 4200 -j 
 iptables -A FORWARD -s 172.20.40.0/24 ! -d 172.20.0.0/16 -p tcp --dport 443 -j $IDS_TARGET
 
 # ------------------------------------------------------------------------------
-# 9. NAT (Masquerading)
+# 9. Internet Access for ClamAV updates
+# ------------------------------------------------------------------------------
+# Allow ClamAV (172.20.20.10) to query DNS (to find update mirrors)
+iptables -A FORWARD -s 172.20.20.10 -p udp --dport 53 -j ACCEPT
+iptables -A FORWARD -d 172.20.20.10 -p udp --sport 53 -j ACCEPT
+
+# Allow ClamAV to download updates (HTTP/HTTPS)
+iptables -A FORWARD -s 172.20.20.10 -p tcp --dport 80 -j ACCEPT
+iptables -A FORWARD -s 172.20.20.10 -p tcp --dport 443 -j ACCEPT
+
+# Enable NAT for ClamAV so it can route back
+iptables -t nat -A POSTROUTING -s 172.20.20.10 -j MASQUERADE
+
+
+# ------------------------------------------------------------------------------
+# 10. NAT (Masquerading)
 # ------------------------------------------------------------------------------
 # Required for internet access. When Cribl traffic leaves the Firewall container
 # to go to the internet, replace the source IP with the Firewall's IP.
 iptables -t nat -A POSTROUTING -s 172.20.40.0/24 ! -d 172.20.0.0/16 -j MASQUERADE
+# Enable NAT for ClamAV so it can route back
+# iptables -t nat -A POSTROUTING -s 172.20.20.10 -j MASQUERADE
+iptables -t nat -A POSTROUTING -s 172.20.20.10 ! -d 172.20.0.0/16 -j MASQUERADE
 
 # ------------------------------------------------------------------------------
-# 10. Logging Dropped Packets
+# 11. Logging Dropped Packets
 # ------------------------------------------------------------------------------
 # If a packet reaches this point, it hasn't matched any ACCEPT rule.
 # Log it to the kernel log (dmesg) with a prefix, then it will hit default DROP.

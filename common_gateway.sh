@@ -24,7 +24,7 @@ fi
 # '*.*' means ALL facilities and ALL severities.
 # '@@' means use TCP (reliable). '@' would mean UDP (unreliable).
 # This sends all local logs to the Cribl Worker.
-echo "*.* @@$CRIBL_IP:514" >> /etc/rsyslog.conf
+echo "*.* @@$CRIBL_IP:9514" >> /etc/rsyslog.conf
 
 # Start the logging daemon in the background so it doesn't block the script.
 #rsyslogd -n &

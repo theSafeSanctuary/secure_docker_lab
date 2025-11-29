@@ -19,7 +19,7 @@ fi
 echo "[Firewall] Enabling IP Forwarding..."
 # CRITICAL: This flips the kernel switch that allows this container to act as a router.
 # Without this, packets arriving at eth1 (SSH Net) destined for eth2 (SFTP Net) would be dropped.
-# sysctl -w net.ipv4.ip_forward=1
+
 
 echo "[Firewall] Applying Rules..."
 # We apply iptables rules BEFORE starting network services.
@@ -30,7 +30,16 @@ echo "[Firewall] Updating Suricata Rules..."
 # Update rules (using Emerging Threats Open by default)
 # Fetches the latest signatures (ET Open) and compiles them into a single file.
 # We use | so that if the update fails (e.g., no internet), the container doesn't crash.
-suricata-update --no-reload | true
+# Avoid piping to a short-lived consumer (e.g. `| true`) because that closes the
+# read end of the pipe and causes Python's logging to raise BrokenPipeError.
+# Run suricata-update if available, redirect output to a logfile and ignore
+# non-zero exit status so the container continues.
+if command -v suricata-update >/dev/null 2>&1; then
+	mkdir -p /var/log/suricata
+	suricata-update --no-reload > /var/log/suricata/suricata-update.log 2>&1 || echo "[Firewall] suricata-update failed, continuing"
+else
+	echo "[Firewall] suricata-update not found, skipping"
+fi
 
 echo "[Firewall] Starting Rsyslog..."
 # We append a forwarding rule to the config file dynamically.

@@ -44,7 +44,7 @@ services:
       - NET_RAW
       - SYS_NICE # Required for Suricata
     sysctls:
-      net.ipv4.ip_forward: '1'
+      - net.ipv4.ip_forward=1
     volumes:
       - ./keys/id_rsa.pub:/tmp/id_rsa.pub:ro # Inject Public Key for SSH access
     # The firewall is the ONLY container attached to ALL networks.
