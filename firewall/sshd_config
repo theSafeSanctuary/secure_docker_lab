@@ -1,0 +1,7 @@
+PermitRootLogin prohibit-password
+PasswordAuthentication no
+ChallengeResponseAuthentication no
+PubkeyAuthentication yes
+AuthorizedKeysFile .ssh/authorized_keys
+SyslogFacility AUTH
+LogLevel INFO

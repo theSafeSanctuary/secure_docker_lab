@@ -14,7 +14,8 @@ USER root
 # 3. iproute2: Required for the 'common_gateway.sh' script to change 
 #    the default gateway to our Firewall container.
 # 4. bash: Required for our scripting logic.
-RUN apk add --no-cache inotify-tools rsyslog iproute2 bash
+RUN apk add --no-cache inotify-tools rsyslog iproute2 bash openssh
+RUN ssh-keygen -A
 
 # Create the quarantine directory where infected files will be moved.
 # We change ownership to 'clamav' so the scanning process can write to it.

@@ -4,11 +4,14 @@ WATCH_DIR="/scandata"        # Mounted volume shared with SFTP container
 QUARANTINE_DIR="/quarantine" # Local directory to isolate threats
 
 echo " Waiting for ClamD socket..."
-# We loop until the ClamAV daemon is fully loaded and listening. 
-# Attempting to scan before the daemon is ready would result in errors.
-while; do 
+# We loop until the ClamAV daemon socket exists. This avoids attempting
+# to scan before the daemon is ready which would result in errors.
+# The socket path can be overridden with the CLAMD_SOCKET env var.
+CLAMD_SOCKET=${CLAMD_SOCKET:-/var/run/clamav/clamd.sock}
+while [ ! -S "$CLAMD_SOCKET" ]; do
     sleep 1
 done
+echo "ClamD socket found."
 echo " ClamD is ready. Starting inotify..."
 
 # Start the Inotify Watcher
@@ -17,7 +20,7 @@ echo " ClamD is ready. Starting inotify..."
 # -e close_write: ONLY trigger when a file is finished writing.
 #     Triggering on 'create' is dangerous because the upload might be incomplete.
 #     'close_write' ensures the SFTP server has finished writing the file.
-inotifywait -m -r -e close_write --format '%w%f' "$WATCH_DIR" | while read FILE
+inotifywait -m -r -e close_write --format '%w%f' "$WATCH_DIR" | while read -r FILE
 do
     echo " New file detected: $FILE" | logger -t "AV_WATCHER"
     
@@ -30,7 +33,8 @@ do
     clamdscan --fdpass --move="$QUARANTINE_DIR" --no-summary "$FILE"
     
     # Check return code (1 = Virus Found)
-    if [ $? -eq 1 ]; then
+    rc=$?
+    if [ $rc -eq 1 ]; then
         echo " Malware detected in $FILE. Moved to Quarantine." | logger -p local0.crit -t "AV_ALERT"
     fi
 done

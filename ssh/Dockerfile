@@ -9,14 +9,17 @@ RUN apk add --no-cache openssh rsyslog bash iproute2
 
 # Generate keys and set credentials
 RUN ssh-keygen -A
-RUN echo 'root:UserSSHPass123!' | chpasswd
 
 # Copy the hardened config
 COPY sshd_config /etc/ssh/sshd_config
+COPY entrypoint_ssh.sh /entrypoint.sh
+
+# Make the entrypoint executable
+RUN chmod +x /entrypoint.sh
 
 WORKDIR /root
 EXPOSE 22
 
-# We do not define an ENTRYPOINT/CMD here because we override it in 
+# The entrypoint is responsible for setting the default gateway to the Firewall.
 # docker-compose.yml to run the gateway script first.
-CMD
+ENTRYPOINT ["/entrypoint.sh"]

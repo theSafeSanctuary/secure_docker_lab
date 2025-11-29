@@ -28,9 +28,7 @@ RUN pip3 install --upgrade suricata-update
 # BASTION CONFIGURATION:
 # We generate host keys for the SSH server so it can start.
 # We set a root password for the Bastion login (In production, replace this with SSH Key COPY).
-RUN ssh-keygen -A && \
-    echo 'root:SecureAdmin123!' | chpasswd && \
-    mkdir -p /root/.ssh
+RUN ssh-keygen -A
 
 # Copy configuration artifacts
 COPY sshd_config /etc/ssh/sshd_config
@@ -42,4 +40,4 @@ COPY entrypoint.sh /entrypoint.sh
 RUN chmod +x /usr/local/bin/firewall_rules.sh /entrypoint.sh
 
 # The entrypoint script will orchestrate the startup of all 3 services (Firewall, IDS, SSH).
-CMD ["/entrypoint.sh"]
+ENTRYPOINT ["/entrypoint.sh"]

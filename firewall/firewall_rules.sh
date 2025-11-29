@@ -67,15 +67,15 @@ iptables -A FORWARD -d 172.20.40.20 -p tcp --dport 514 -j $IDS_TARGET
 # ------------------------------------------------------------------------------
 # Allow ONLY the Cribl subnet (Source) to reach the Internet (! Dest internal).
 # We allow port 4200 (Cribl Leader comms) and 443 (HTTPS).
-iptables -A FORWARD -s 172.20.40.0/24! -d 172.20.0.0/16 -p tcp --dport 4200 -j $IDS_TARGET
-iptables -A FORWARD -s 172.20.40.0/24! -d 172.20.0.0/16 -p tcp --dport 443 -j $IDS_TARGET
+iptables -A FORWARD -s 172.20.40.0/24 ! -d 172.20.0.0/16 -p tcp --dport 4200 -j $IDS_TARGET
+iptables -A FORWARD -s 172.20.40.0/24 ! -d 172.20.0.0/16 -p tcp --dport 443 -j $IDS_TARGET
 
 # ------------------------------------------------------------------------------
 # 9. NAT (Masquerading)
 # ------------------------------------------------------------------------------
 # Required for internet access. When Cribl traffic leaves the Firewall container
 # to go to the internet, replace the source IP with the Firewall's IP.
-iptables -t nat -A POSTROUTING -s 172.20.40.0/24! -d 172.20.0.0/16 -j MASQUERADE
+iptables -t nat -A POSTROUTING -s 172.20.40.0/24 ! -d 172.20.0.0/16 -j MASQUERADE
 
 # ------------------------------------------------------------------------------
 # 10. Logging Dropped Packets

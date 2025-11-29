@@ -1,0 +1,25 @@
+# ------------------------------------------------------------------------------
+# SSH Server Configuration (Standard Shell Access)
+# ------------------------------------------------------------------------------
+
+# Network & Port
+Port 22
+AddressFamily any
+ListenAddress 0.0.0.0
+
+# Authentication - KEYS ONLY
+PermitRootLogin prohibit-password
+PasswordAuthentication no
+ChallengeResponseAuthentication no
+PubkeyAuthentication yes
+AuthorizedKeysFile .ssh/authorized_keys
+
+# Logging (Sent to Cribl via Rsyslog)
+SyslogFacility AUTH
+LogLevel INFO
+
+# Session & Environment
+UseDNS no
+PermitEmptyPasswords no
+AcceptEnv LANG LC_*
+Subsystem sftp /usr/lib/ssh/sftp-server
