@@ -1,0 +1,26 @@
+# Basic Security settings
+PermitRootLogin yes
+PasswordAuthentication yes
+PermitEmptyPasswords no
+ChallengeResponseAuthentication no
+UsePAM yes
+
+# Logging (Auth logs sent to syslog -> Cribl)
+SyslogFacility AUTH
+LogLevel INFO
+
+# ---------------------------------------------------------------------------
+# SFTP JAIL CONFIGURATION
+# ---------------------------------------------------------------------------
+# Configure the SFTP subsystem
+Subsystem sftp internal-sftp
+
+# Match the group we created in the Dockerfile
+Match Group sftpusers
+    # Force the user into their home directory
+    ChrootDirectory /home/%u
+    # Force the use of the internal SFTP server (no shell access)
+    ForceCommand internal-sftp
+    # Disable port forwarding to prevent tunneling attacks
+    AllowTcpForwarding no
+    X11Forwarding no
