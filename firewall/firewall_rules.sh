@@ -1,0 +1,79 @@
+#!/bin/sh
+
+# ------------------------------------------------------------------------------
+# 1. Default Policy: DENY ALL
+# ------------------------------------------------------------------------------
+# We start by flushing (-F) all existing rules to ensure a clean slate.
+iptables -F
+iptables -X
+# We set the default policy to DROP. If a packet doesn't explicitly match 
+# an ALLOW rule below, it is silently destroyed.
+iptables -P INPUT DROP
+iptables -P FORWARD DROP
+iptables -P OUTPUT ACCEPT
+
+# ------------------------------------------------------------------------------
+# 2. Loopback & State Tracking
+# ------------------------------------------------------------------------------
+# Allow internal processes to talk to themselves (required for Suricata/Syslog).
+iptables -A INPUT -i lo -j ACCEPT
+iptables -A OUTPUT -o lo -j ACCEPT
+
+# Allow return traffic. If a connection was validly established (outgoing),
+# allow the response packets back in.
+iptables -A INPUT -m state --state ESTABLISHED,RELATED -j ACCEPT
+iptables -A FORWARD -m state --state ESTABLISHED,RELATED -j ACCEPT
+
+# ------------------------------------------------------------------------------
+# 3. Management Access
+# ------------------------------------------------------------------------------
+# Allow you to SSH into the Firewall container itself from the Docker host.
+iptables -A INPUT -p tcp --dport 22 -j ACCEPT
+
+# ------------------------------------------------------------------------------
+# 4. IDS Integration (The "Bump in the Wire")
+# ------------------------------------------------------------------------------
+# We define a variable for the target action.
+# NFQUEUE: Sends the packet to userspace (Suricata) for inspection.
+# --queue-num 0: Suricata will listen on queue 0.
+# --queue-bypass: FAIL-OPEN mechanism. If Suricata crashes or is restarting,
+# packets will NOT be dropped; they will bypass inspection to keep the network alive.
+IDS_TARGET="NFQUEUE --queue-num 0 --queue-bypass"
+
+# ------------------------------------------------------------------------------
+# 5. Routing Rules (East-West Traffic)
+# ------------------------------------------------------------------------------
+# Only allow SSH (TCP 22) between subnets, AND force it through the IDS.
+# Source: 172.20.0.0/16 (Any of our subnets)
+# Dest:   172.20.0.0/16 (Any of our subnets)
+iptables -A FORWARD -s 172.20.0.0/16 -d 172.20.0.0/16 -p tcp --dport 22 -j $IDS_TARGET
+
+# ------------------------------------------------------------------------------
+# 6. Telemetry Rules (East-West Traffic)
+# ------------------------------------------------------------------------------
+# Allow all subnets to send Syslog (514) to the Cribl Worker (.20).
+# We inspect this too, to ensure no one is exploiting the logging protocol.
+iptables -A FORWARD -d 172.20.40.20 -p udp --dport 514 -j $IDS_TARGET
+iptables -A FORWARD -d 172.20.40.20 -p tcp --dport 514 -j $IDS_TARGET
+
+# ------------------------------------------------------------------------------
+# 7. Internet Access (North-South Traffic)
+# ------------------------------------------------------------------------------
+# Allow ONLY the Cribl subnet (Source) to reach the Internet (! Dest internal).
+# We allow port 4200 (Cribl Leader comms) and 443 (HTTPS).
+iptables -A FORWARD -s 172.20.40.0/24! -d 172.20.0.0/16 -p tcp --dport 4200 -j $IDS_TARGET
+iptables -A FORWARD -s 172.20.40.0/24! -d 172.20.0.0/16 -p tcp --dport 443 -j $IDS_TARGET
+
+# ------------------------------------------------------------------------------
+# 8. NAT (Masquerading)
+# ------------------------------------------------------------------------------
+# Required for internet access. When Cribl traffic leaves the Firewall container
+# to go to the internet, replace the source IP with the Firewall's IP.
+iptables -t nat -A POSTROUTING -s 172.20.40.0/24! -d 172.20.0.0/16 -j MASQUERADE
+
+# ------------------------------------------------------------------------------
+# 9. Logging Dropped Packets
+# ------------------------------------------------------------------------------
+# If a packet reaches this point, it hasn't matched any ACCEPT rule.
+# Log it to the kernel log (dmesg) with a prefix, then it will hit default DROP.
+iptables -A FORWARD -j LOG --log-prefix "FW-DROP: " --log-level 6

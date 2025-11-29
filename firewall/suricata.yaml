@@ -1,0 +1,30 @@
+%YAML 1.1
+---
+# Define our internal network. Suricata uses this to determine 
+# directionality (Internal -> External).
+vars:
+  address-groups:
+    HOME_NET: "[172.20.0.0/16]"
+    EXTERNAL_NET: "!$HOME_NET"
+
+outputs:
+  # EVE-JSON is the standard output format for Suricata.
+  - eve-log:
+      enabled: yes
+      # We send logs directly to the local Syslog facility.
+      # Rsyslog (running on the firewall) will pick this up and forward to Cribl.
+      filetype: syslog 
+      identity: "suricata"
+      facility: local0
+      types:
+        - alert:
+            payload: yes           # Include packet payload (base64)
+            http-body: yes         # Include HTTP bodies
+            metadata: yes          # Include flow metadata
+
+# NFQUEUE Configuration
+nfq:
+  mode: accept        # After inspection, tell kernel to ACCEPT the packet.
+  repeat-mark: 1      # (Optional) Used for marking packets to avoid re-scan.
+  repeat-mask: 1
+  fail-open: yes      # Internal fail-open setting (complementing iptables).

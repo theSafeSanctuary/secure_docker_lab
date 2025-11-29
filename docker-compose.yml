@@ -1,0 +1,87 @@
+version: '3.8'
+
+networks:
+  # We define 5 distinct networks. 
+  # We manually specify the subnet CIDR to ensure we can predict IP addresses.
+  # This predictability is required for our static firewall rules.
+  net_ssh:
+    ipam:
+      config:
+        - subnet: 172.20.10.0/24
+  net_av:
+    ipam:
+      config:
+        - subnet: 172.20.20.0/24
+  net_falco:
+    ipam:
+      config:
+        - subnet: 172.20.30.0/24
+  net_cribl:
+    ipam:
+      config:
+        - subnet: 172.20.40.0/24
+  net_sftp:
+    ipam:
+      config:
+        - subnet: 172.20.50.0/24
+
+volumes:
+  sftp_data: # Shared storage: SFTP writes here, ClamAV reads from here.
+  cribl_config:
+  cribl_data:
+
+services:
+  # ---------------------------------------------------------
+  # FIREWALL (The Hub)
+  # ---------------------------------------------------------
+  firewall:
+    build:./firewall
+    container_name: firewall
+    hostname: firewall
+    # CRITICAL: These capabilities allow the container to modify the kernel's
+    # network stack (iptables) and manage process priority (Suricata).
+    cap_add:
+      - NET_ADMIN 
+      - NET_RAW
+      - SYS_NICE
+    # The firewall is the ONLY container attached to ALL networks.
+    # It acts as the router between them.
+    networks:
+      net_ssh:
+        ipv4_address: 172.20.10.254
+      net_av:
+        ipv4_address: 172.20.20.254
+      net_falco:
+        ipv4_address: 172.20.30.254
+      net_cribl:
+        ipv4_address: 172.20.40.254
+      net_sftp:
+        ipv4_address: 172.20.50.254
+    ports:
+      - "2222:22" # Maps host port 2222 to container port 22 for management access.
+    restart: always
+
+  # ---------------------------------------------------------
+  # SSH SERVER (The Spoke)
+  # ---------------------------------------------------------
+  ssh_server:
+    build:./ssh
+    container_name: ssh_server
+    # NET_ADMIN is required solely to delete the default Docker route
+    # and add our custom route through the Firewall container.
+    cap_add:
+      - NET_ADMIN 
+    volumes:
+      -./common_gateway.sh:/usr/local/bin/gateway.sh
+    # We override the entrypoint to run our gateway script before the app starts.
+    entrypoint: 
+      - /bin/bash
+      - -c
+      - |
+        chmod +x /usr/local/bin/gateway.sh
+        # Arguments: <Firewall_IP_on_this_subnet> <Cribl_Worker_IP>
+        /usr/local/bin/gateway.sh 172.20.10.254 172.20.40.20
+        /usr/sbin/sshd -D
+    networks:
+      net_ssh:
+        ipv4_address: 172.20.10.10
