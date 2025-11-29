@@ -32,7 +32,7 @@ volumes:
 
 services:
   # ---------------------------------------------------------
-  # FIREWALL (The Hub)
+  # FIREWALL (Next-Gen: Router + IDS)
   # ---------------------------------------------------------
   firewall:
     build:./firewall
@@ -41,9 +41,9 @@ services:
     # CRITICAL: These capabilities allow the container to modify the kernel's
     # network stack (iptables) and manage process priority (Suricata).
     cap_add:
-      - NET_ADMIN 
+      - NET_ADMIN
       - NET_RAW
-      - SYS_NICE
+      - SYS_NICE # Required for Suricata
     # The firewall is the ONLY container attached to ALL networks.
     # It acts as the router between them.
     networks:
@@ -58,11 +58,11 @@ services:
       net_sftp:
         ipv4_address: 172.20.50.254
     ports:
-      - "2222:22" # Maps host port 2222 to container port 22 for management access.
+      - "2222:22" # SSH Bastion that Maps host port 2222 to container port 22 for management access.
     restart: always
 
   # ---------------------------------------------------------
-  # SSH SERVER (The Spoke)
+  # SSH SERVER
   # ---------------------------------------------------------
   ssh_server:
     build:./ssh
@@ -70,7 +70,7 @@ services:
     # NET_ADMIN is required solely to delete the default Docker route
     # and add our custom route through the Firewall container.
     cap_add:
-      - NET_ADMIN 
+      - NET_ADMIN
     volumes:
       -./common_gateway.sh:/usr/local/bin/gateway.sh
     # We override the entrypoint to run our gateway script before the app starts.
@@ -85,3 +85,126 @@ services:
     networks:
       net_ssh:
         ipv4_address: 172.20.10.10
+
+  # ---------------------------------------------------------
+  # CLAMAV
+  # ---------------------------------------------------------
+  clamav:
+    build:./clamav
+    container_name: clamav
+    cap_add:
+      - NET_ADMIN
+    volumes:
+      - sftp_data:/scandata
+      -./common_gateway.sh:/usr/local/bin/gateway.sh
+    entrypoint:
+      - /bin/bash
+      - -c
+      - |
+        /usr/local/bin/gateway.sh 172.20.20.254 172.20.40.20
+        /init
+        /usr/local/bin/scan_watcher.sh &
+        wait
+    networks:
+      net_av:
+        ipv4_address: 172.20.20.10
+
+  # ---------------------------------------------------------
+  # FALCO
+  # ---------------------------------------------------------
+  falco:
+    build:./falco
+    container_name: falco
+    privileged: true
+    volumes:
+      - /var/run/docker.sock:/host/var/run/docker.sock
+      - /dev:/host/dev
+      - /proc:/host/proc:ro
+      - /boot:/host/boot:ro
+      - /lib/modules:/host/lib/modules:ro
+      -./common_gateway.sh:/usr/local/bin/gateway.sh
+    networks:
+      net_falco:
+        ipv4_address: 172.20.30.10
+
+  # ---------------------------------------------------------
+  # FALCOSIDEKICK
+  # ---------------------------------------------------------
+  falcosidekick:
+    build:./falcosidekick
+    container_name: falcosidekick
+    cap_add:
+      - NET_ADMIN
+    environment:
+      - SYSLOG_HOST=172.20.40.20
+      - SYSLOG_PORT=514
+      - SYSLOG_PROTOCOL=tcp
+    volumes:
+      -./common_gateway.sh:/usr/local/bin/gateway.sh
+    networks:
+      net_falco:
+        ipv4_address: 172.20.30.11
+
+  # ---------------------------------------------------------
+  # CRIBL LEADER
+  # ---------------------------------------------------------
+  cribl_leader:
+    image: cribl/cribl:latest
+    container_name: cribl_leader
+    environment:
+      - CRIBL_DIST_MODE=master
+      - CRIBL_VOLUME_DIR=/opt/cribl/config-volume
+    volumes:
+      # Map the named volumes to the container paths
+      - cribl_config:/opt/cribl/config-volume
+      - cribl_data:/opt/cribl/local
+    networks:
+      net_cribl:
+        ipv4_address: 172.20.40.10
+    ports:
+      - "9000:9000"
+
+  # ---------------------------------------------------------
+  # CRIBL WORKER
+  # ---------------------------------------------------------
+  cribl_worker:
+    image: cribl/cribl:latest
+    container_name: cribl_worker
+    cap_add:
+      - NET_ADMIN
+    environment:
+      - CRIBL_DIST_MODE=worker
+      - CRIBL_DIST_MASTER_URL=tcp://criblmaster@172.20.40.10:4200
+    volumes:
+      -./common_gateway.sh:/usr/local/bin/gateway.sh
+    entrypoint:
+      - /bin/bash
+      - -c
+      - |
+        /usr/local/bin/gateway.sh 172.20.40.254 172.20.40.20
+        /sbin/entrypoint.sh cribl
+    networks:
+      net_cribl:
+        ipv4_address: 172.20.40.20
+
+  # ---------------------------------------------------------
+  # SFTP SERVER
+  # ---------------------------------------------------------
+  sftp_server:
+    build:./sftp
+    container_name: sftp_server
+    cap_add:
+      - NET_ADMIN
+    volumes:
+      - sftp_data:/home/sftpuser/upload
+      -./common_gateway.sh:/usr/local/bin/gateway.sh
+    entrypoint:
+      - /bin/bash
+      - -c
+      - |
+        chmod +x /usr/local/bin/gateway.sh
+        /usr/local/bin/gateway.sh 172.20.50.254 172.20.40.20
+        /usr/sbin/sshd -D
+    networks:
+      net_sftp:
+        ipv4_address: 172.20.50.10

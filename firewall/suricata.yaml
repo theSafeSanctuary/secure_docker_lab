@@ -8,6 +8,7 @@ vars:
     EXTERNAL_NET: "!$HOME_NET"
 
 outputs:
+  # Outputs: Send EVE (JSON) logs to Syslog (Local Facility)
   # EVE-JSON is the standard output format for Suricata.
   - eve-log:
       enabled: yes
@@ -28,3 +29,15 @@ nfq:
   repeat-mark: 1      # (Optional) Used for marking packets to avoid re-scan.
   repeat-mask: 1
   fail-open: yes      # Internal fail-open setting (complementing iptables).
+
+# App Layer Parsers
+app-layer:
+  protocols:
+    ssh:
+      enabled: yes
+    dns:
+      enabled: yes
+      global-memcap: 16mb
+
+# Processing
+runmode: workers

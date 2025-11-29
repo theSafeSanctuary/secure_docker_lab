@@ -13,10 +13,9 @@ echo "[Firewall] Applying Rules..."
 /usr/local/bin/firewall_rules.sh
 
 echo "[Firewall] Updating Suricata Rules..."
+# Update rules (using Emerging Threats Open by default)
 # Fetches the latest signatures (ET Open) and compiles them into a single file.
-# We use |
-
-| true so that if the update fails (e.g., no internet), the container doesn't crash.
+# We use | so that if the update fails (e.g., no internet), the container doesn't crash.
 suricata-update --no-reload |
 
 | true
