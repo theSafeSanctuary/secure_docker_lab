@@ -1,0 +1,1 @@
+ssh -vvv -o "StrictHostKeyChecking=no" -o "IdentitiesOnly=yes" -o "ProxyCommand=ssh -i ./keys/id_rsa -W %h:%p -p 2222 root@localhost" -i ./keys/id_rsa root@172.20.10.10 2>&1 | Tee-Object ssh-proxy-manual.log

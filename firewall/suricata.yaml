@@ -1,43 +1,102 @@
 %YAML 1.1
 ---
-# Define our internal network. Suricata uses this to determine 
-# directionality (Internal -> External).
+# Suricata Configuration for Zero Trust Firewall
+
+# 1. Network Variables
+# These are REQUIRED by Emerging Threats rules.
 vars:
   address-groups:
+    # Define our internal networks (The 5 subnets in the architecture)
     HOME_NET: "[172.20.0.0/16]"
+    
+    # External Net is everything else
     EXTERNAL_NET: "!$HOME_NET"
+    
+    # Server definitions: Map these to HOME_NET to protect internal assets
+    HTTP_SERVERS: "$HOME_NET"
+    SMTP_SERVERS: "$HOME_NET"
+    SQL_SERVERS: "$HOME_NET"
+    DNS_SERVERS: "$HOME_NET"
+    TELNET_SERVERS: "$HOME_NET"
+    
+    # Clients: usually HOME_NET for egress traffic inspection
+    AIM_SERVERS: "$EXTERNAL_NET"
+    DNP3_SERVER: "$HOME_NET"
+    DNP3_CLIENT: "$HOME_NET"
+    MODBUS_CLIENT: "$HOME_NET"
+    MODBUS_SERVER: "$HOME_NET"
+    ENIP_CLIENT: "$HOME_NET"
+    ENIP_SERVER: "$HOME_NET"
 
+  port-groups:
+    # Standard Port Definitions
+    HTTP_PORTS: "80,443"  # Added HTTPS (443) to support secure web traffic
+    SHELLCODE_PORTS: "!80,!443"  # Excluding HTTP/HTTPS ports to avoid false positives
+    ORACLE_PORTS: 1521
+    SSH_PORTS: 22
+    DNP3_PORTS: 20000
+    MODBUS_PORTS: 502
+    FILE_DATA_PORTS: "$HTTP_PORTS,110,143"
+    FTP_PORTS: 21
+    GENEVE_PORTS: 6081
+    VXLAN_PORTS: 4789
+    TEREDO_PORTS: 3544
+
+# 2. Output Configuration
 outputs:
-  # Outputs: Send EVE (JSON) logs to Syslog (Local Facility)
-  # EVE-JSON is the standard output format for Suricata.
   - eve-log:
       enabled: yes
-      # We send logs directly to the local Syslog facility.
-      # Rsyslog (running on the firewall) will pick this up and forward to Cribl.
-      filetype: syslog 
+      filetype: syslog
       identity: "suricata"
       facility: local0
       types:
         - alert:
-            payload: yes           # Include packet payload (base64)
-            http-body: yes         # Include HTTP bodies
-            metadata: yes          # Include flow metadata
+            payload: yes
+            payload-buffer-size: 8kb  # Increased buffer size for larger payloads
+            payload-printable: yes
+            packet: yes
+            http-body: yes
+            metadata: yes
+        - dns:
+            metadata: yes  # Include metadata for DNS logs
+        - ssh:
+            metadata: yes  # Include metadata for SSH logs
 
-# NFQUEUE Configuration
+# 3. NFQUEUE Configuration (Inline Mode)
 nfq:
-  mode: accept        # After inspection, tell kernel to ACCEPT the packet.
-  repeat-mark: 1      # (Optional) Used for marking packets to avoid re-scan.
+  mode: accept
+  repeat-mark: 1
   repeat-mask: 1
-  fail-open: yes      # Internal fail-open setting (complementing iptables).
+  fail-open: yes
+  # Additional NFQUEUE performance options
+  qlen: 1024  # Increased queue length for better handling of traffic bursts
 
-# App Layer Parsers
+# 4. Protocol Detection
 app-layer:
   protocols:
     ssh:
       enabled: yes
     dns:
       enabled: yes
-      global-memcap: 16mb
+      global-memcap: 32mb  # Increased memory cap for DNS processing
+    http:
+      enabled: yes
+      # Enable additional HTTP inspection features
+      ports: [80, 443]  # Explicitly define HTTP and HTTPS ports for inspection
+    dnp3:
+       enabled: yes
+       detection-enabled: yes
+    modbus:
+       enabled: yes
+       detection-enabled: yes
+    # Add custom protocol detection if necessary
+    custom-protocol:
+       enabled: no  # Placeholder for custom protocols
 
-# Processing
+# 5. Performance Tuning and Worker Configuration
 runmode: workers
+worker-processors: 4  # Increase workers based on system resources (tune as needed)
+# Tuning Suricata's internal memory usage and CPU core allocation
+memcap: 10gb  # Total Suricata memory cap (increase based on available system RAM)
+# Performance tuning options for faster packet processing
+defrag-tcp: yes  # Enable TCP stream reassembly for better protocol detection
